@@ -1,0 +1,53 @@
+project_name: tokenix
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: tokenix
+    main: ./main.go
+    binary: tokenix
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w -X main.version={{.Version}}
+
+archives:
+  - id: default
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    format_overrides:
+      - goos: windows
+        format: zip
+    files:
+      - README.md
+
+checksum:
+  name_template: "checksums.txt"
+
+changelog:
+  use: git
+
+brews:
+  - name: tokenix
+    repository:
+      owner: hasirciogluhq
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+    homepage: "https://github.com/hasirciogluhq/tokenix"
+    description: "CLI tool for multi-model token count estimation"
+    license: "MIT"
+    commit_author:
+      name: tokenix-bot
+      email: bot@users.noreply.github.com
+    install: |
+      bin.install "tokenix"
+    test: |
+      system "#{bin}/tokenix", "--version"
