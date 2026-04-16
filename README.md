@@ -1,1 +1,107 @@
 # tokenix
+
+Tokenix, farkli LLM modelleri icin token sayisini tahmini olarak hesaplayan bir Go CLI aracidir.
+Bu arac dosya, stdin ve direkt `--data` girdi yollarini destekler.
+
+## Ozellikler
+
+- Cobra tabanli CLI
+- `--data` ile direkt metin uzerinden hesaplama
+- `--file` ile dosyadan hesaplama
+- stdin pipe ile hesaplama
+- Model bazli min / max / average / net token tahmini
+- Tum secili modeller icin genel ozet (spread dahil)
+- JSON veya text cikti
+- GitHub Actions CI + GoReleaser release akisi
+
+## Desteklenen Modeller
+
+- `gpt-4o-mini`
+- `gpt-4o`
+- `claude-3.5-sonnet`
+- `claude-3-haiku`
+- `gemini-1.5-flash`
+- `gemini-1.5-pro`
+
+## Kurulum
+
+```bash
+go install github.com/hasirciogluhq/tokenix@latest
+```
+
+## Kullanim
+
+### 1) `--data` ile
+
+```bash
+tokenix --data "Merhaba dunya bu bir token tahmin denemesi"
+```
+
+### 2) Dosyadan
+
+```bash
+tokenix --file ./prompt.txt
+```
+
+### 3) stdin ile
+
+```bash
+echo "stdin ile gelen metin" | tokenix --model gpt-4o
+```
+
+### 4) Birden fazla model secimi
+
+```bash
+tokenix --data "test" --model gpt-4o,claude-3.5-sonnet
+```
+
+### 5) JSON cikti
+
+```bash
+tokenix --data "test" --format json
+```
+
+## Branch ve release stratejisi
+
+Profesyonel akista:
+
+1. `main`: stabil branch
+2. `development`: aktif gelistirme branchi
+3. Ozellik branchleri `development` uzerinden acilir
+4. `development` -> `main` merge sonrasi tag atilir
+5. SemVer tagleri (`v0.1.0`, `v0.1.1`, ...)
+6. Tag push ile GoReleaser otomatik binary release uretir
+
+Ornek:
+
+```bash
+git checkout -b development
+git push -u origin development
+```
+
+Yeni versiyon:
+
+```bash
+git checkout main
+git pull origin main
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+## Go Proxy yenileme scripti
+
+`scripts/refresh-go-proxy.sh` scripti, yeni tag sonrasinda Go proxy cache'ini tetiklemek icin kullanilir:
+
+```bash
+./scripts/refresh-go-proxy.sh hasirciogluhq/tokenix v0.1.0
+```
+
+## Test
+
+Bu repoda unit testler:
+
+- `internal/token/estimator_test.go`
+- `internal/input/read_test.go`
+- `cmd/root_test.go`
+
+CI pipeline her push ve PR'da `go test ./...` calistirir.
