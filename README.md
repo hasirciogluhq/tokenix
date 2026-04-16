@@ -25,6 +25,37 @@ Bu arac dosya, stdin ve direkt `--data` girdi yollarini destekler.
 
 ## Kurulum
 
+### 1) Homebrew ile (onerilen)
+
+`homebrew-tap` reposu olustugunda:
+
+```bash
+brew tap hasirciogluhq/tap
+brew install tokenix
+```
+
+Not: Eger formula ismi cakisirsa su sekilde de kurabilirsiniz:
+
+```bash
+brew install hasirciogluhq/tap/tokenix
+```
+
+### 2) Bash install scripti ile
+
+Latest surumu kur:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/hasirciogluhq/tokenix/main/scripts/install.sh | bash
+```
+
+Belirli surum kur:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/hasirciogluhq/tokenix/main/scripts/install.sh | bash -s -- v0.1.0
+```
+
+### 3) Go ile
+
 ```bash
 go install github.com/hasirciogluhq/tokenix@latest
 ```
@@ -71,6 +102,7 @@ Profesyonel akista:
 4. `development` -> `main` merge sonrasi tag atilir
 5. SemVer tagleri (`v0.1.0`, `v0.1.1`, ...)
 6. Tag push ile GoReleaser otomatik binary release uretir
+7. GoReleaser ayni anda Homebrew formula gunceller
 
 Ornek:
 
@@ -87,6 +119,12 @@ git pull origin main
 git tag v0.1.0
 git push origin v0.1.0
 ```
+
+### Homebrew otomasyonu icin gerekenler
+
+- `hasirciogluhq/homebrew-tap` adinda bir repo olustur
+- Bu repoya yazma izni olan `HOMEBREW_TAP_GITHUB_TOKEN` secret'ini `tokenix` reposuna ekle
+- Tag release aninda formula otomatik push edilir
 
 ## Go Proxy yenileme scripti
 
