@@ -9,14 +9,16 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func newModelsCmd() *cobra.Command {
+func newModelsCmd(opts *options) *cobra.Command {
 	var refresh, asJSON bool
 	c := &cobra.Command{
 		Use:   "models [filter]",
 		Short: "List known models and their pricing",
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			reg := models.Load(models.Options{Refresh: refresh})
+			o := *opts
+			o.refresh = refresh
+			reg := o.loadRegistry()
 			if reg.Warning != "" {
 				fmt.Fprintf(cmd.ErrOrStderr(), "warning: %s\n", reg.Warning)
 			}
@@ -46,23 +48,23 @@ func newModelsCmd() *cobra.Command {
 	return c
 }
 
-func newCacheCmd() *cobra.Command {
+func newCacheCmd(opts *options) *cobra.Command {
 	c := &cobra.Command{Use: "cache", Short: "Manage the local model cache"}
 	c.AddCommand(&cobra.Command{
 		Use:   "path",
 		Short: "Print the cache file location",
 		Args:  cobra.NoArgs,
-		Run:   func(cmd *cobra.Command, _ []string) { fmt.Fprintln(cmd.OutOrStdout(), models.CachePath("")) },
+		Run:   func(cmd *cobra.Command, _ []string) { fmt.Fprintln(cmd.OutOrStdout(), models.CachePath(opts.cacheDir)) },
 	})
 	c.AddCommand(&cobra.Command{
 		Use:   "clear",
 		Short: "Delete the cached model list",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			if err := models.ClearCache(""); err != nil {
+			if err := models.ClearCache(opts.cacheDir); err != nil {
 				return err
 			}
-			fmt.Fprintln(cmd.OutOrStdout(), "cache cleared:", models.CachePath(""))
+			fmt.Fprintln(cmd.OutOrStdout(), "cache cleared:", models.CachePath(opts.cacheDir))
 			return nil
 		},
 	})

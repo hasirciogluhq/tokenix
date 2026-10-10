@@ -128,3 +128,141 @@ func TestDirWithFilters(t *testing.T) {
 		t.Fatalf("unexpected files: %v", files)
 	}
 }
+
+// execute runs the real cobra command tree with the given arguments.
+func execute(t *testing.T, stdin string, args ...string) (stdout, stderr string, err error) {
+	t.Helper()
+	opts := &options{registry: fakeRegistry, cacheDir: t.TempDir()}
+	root := newRootCmd("test", opts)
+	var out, errOut bytes.Buffer
+	root.SetOut(&out)
+	root.SetErr(&errOut)
+	root.SetIn(strings.NewReader(stdin))
+	root.SetArgs(args)
+	err = root.Execute()
+	return out.String(), errOut.String(), err
+}
+
+func TestCLICommaSeparatedAndRepeatedModelFlags(t *testing.T) {
+	for _, args := range [][]string{
+		{"-d", "hello world", "-m", "gpt-4o,claude-sonnet-4-5", "--format", "json"},
+		{"-d", "hello world", "-m", "gpt-4o", "-m", "claude-sonnet-4-5", "--format", "json"},
+		{"-d", "hello world", "--model", "gpt-4o, claude-sonnet-4-5", "--format", "json"},
+	} {
+		out, _, err := execute(t, "", args...)
+		if err != nil {
+			t.Fatalf("%v: %v", args, err)
+		}
+		if got := len(decode(t, out).Results); got != 2 {
+			t.Fatalf("%v: expected 2 results, got %d", args, got)
+		}
+	}
+}
+
+func TestCLILegacyAllKeyword(t *testing.T) {
+	out, _, err := execute(t, "", "-d", "hello", "-m", "all", "--format", "json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := len(decode(t, out).Results); got != 3 {
+		t.Fatalf("expected 3 results, got %d", got)
+	}
+}
+
+func TestCLIStdin(t *testing.T) {
+	out, _, err := execute(t, "piped text for estimation", "--format", "json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r := decode(t, out); r.Source != "stdin" || r.Results[0].Model != "global" {
+		t.Fatalf("unexpected report: %+v", r)
+	}
+}
+
+func TestCLINoInputFails(t *testing.T) {
+	if _, _, err := execute(t, "   "); err == nil {
+		t.Fatal("expected error for blank stdin")
+	}
+}
+
+func TestCLIModelsCommand(t *testing.T) {
+	out, _, err := execute(t, "", "models", "gpt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out, "gpt-4o-mini") || strings.Contains(out, "claude-sonnet") {
+		t.Fatalf("filter not applied:\n%s", out)
+	}
+
+	out, _, err = execute(t, "", "models", "--json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var list []models.Model
+	if err := json.Unmarshal([]byte(out), &list); err != nil || len(list) != 3 {
+		t.Fatalf("unexpected json (%v): %s", err, out)
+	}
+}
+
+func TestCLICacheCommands(t *testing.T) {
+	dir := t.TempDir()
+	opts := &options{registry: fakeRegistry, cacheDir: dir}
+	run := func(args ...string) string {
+		root := newRootCmd("test", opts)
+		var out bytes.Buffer
+		root.SetOut(&out)
+		root.SetArgs(args)
+		if err := root.Execute(); err != nil {
+			t.Fatal(err)
+		}
+		return out.String()
+	}
+
+	if got := strings.TrimSpace(run("cache", "path")); got != models.CachePath(dir) {
+		t.Fatalf("unexpected path %q", got)
+	}
+	if err := os.WriteFile(models.CachePath(dir), []byte("{}"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	run("cache", "clear")
+	if _, err := os.Stat(models.CachePath(dir)); !os.IsNotExist(err) {
+		t.Fatalf("cache file should be removed: %v", err)
+	}
+}
+
+func TestCLIRefreshFlagReachesRegistry(t *testing.T) {
+	var gotRefresh bool
+	opts := &options{cacheDir: t.TempDir(), registry: func(o models.Options) *models.Registry {
+		gotRefresh = o.Refresh
+		return fakeRegistry(o)
+	}}
+	root := newRootCmd("test", opts)
+	root.SetOut(&bytes.Buffer{})
+	root.SetErr(&bytes.Buffer{})
+	root.SetArgs([]string{"-d", "hello", "-m", "gpt-4o", "--refresh"})
+	if err := root.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	if !gotRefresh {
+		t.Fatal("--refresh did not reach the registry loader")
+	}
+}
+
+func TestCLIWarningGoesToStderr(t *testing.T) {
+	opts := &options{cacheDir: t.TempDir(), registry: func(models.Options) *models.Registry {
+		return models.NewRegistry([]models.Model{{ID: "gpt-4o", Provider: "openai", InputPerToken: 1e-6}},
+			models.SourceBuiltin, time.Time{}, "using built-in list")
+	}}
+	root := newRootCmd("test", opts)
+	var out, errOut bytes.Buffer
+	root.SetOut(&out)
+	root.SetErr(&errOut)
+	root.SetArgs([]string{"-d", "hello", "-m", "gpt-4o", "--format", "json"})
+	if err := root.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(errOut.String(), "using built-in list") {
+		t.Fatalf("warning missing from stderr: %q", errOut.String())
+	}
+	decode(t, out.String()) // stdout must stay valid JSON
+}

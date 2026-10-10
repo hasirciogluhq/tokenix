@@ -30,8 +30,12 @@ type options struct {
 
 // Execute runs the root command.
 func Execute(version string) error {
-	opts := options{}
+	return newRootCmd(version, &options{}).Execute()
+}
 
+// newRootCmd builds the command tree. Tests pre-fill opts.registry and
+// opts.cacheDir to run the CLI end to end without network or real caches.
+func newRootCmd(version string, opts *options) *cobra.Command {
 	rootCmd := &cobra.Command{
 		Use:   "tokenix",
 		Short: "Estimate token counts and input cost for prompts, files and directories",
@@ -45,7 +49,7 @@ from a model catalog that is cached locally for one day (--refresh to re-fetch).
 		SilenceErrors: true,
 		Args:          cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runEstimate(cmd.InOrStdin(), cmd.OutOrStdout(), cmd.ErrOrStderr(), opts)
+			return runEstimate(cmd.InOrStdin(), cmd.OutOrStdout(), cmd.ErrOrStderr(), *opts)
 		},
 	}
 
@@ -60,10 +64,10 @@ from a model catalog that is cached locally for one day (--refresh to re-fetch).
 	f.StringSliceVarP(&opts.exclude, "exclude", "x", nil, "Skip files/dirs matching these glob patterns (e.g. '*_test.go', 'vendor')")
 	f.StringVar(&opts.format, "format", "text", "Output format: text or json")
 
-	rootCmd.AddCommand(newModelsCmd())
-	rootCmd.AddCommand(newCacheCmd())
+	rootCmd.AddCommand(newModelsCmd(opts))
+	rootCmd.AddCommand(newCacheCmd(opts))
 
-	return rootCmd.Execute()
+	return rootCmd
 }
 
 func (o options) loadRegistry() *models.Registry {
