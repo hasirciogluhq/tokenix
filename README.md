@@ -1,163 +1,122 @@
 # tokenix
 
-Tokenix, farkli LLM modelleri icin token sayisini tahmini olarak hesaplayan bir Go CLI aracidir.
-Bu arac dosya, stdin ve direkt `--data` girdi yollarini destekler.
+[![CI](https://github.com/hasirciogluhq/tokenix/actions/workflows/ci.yml/badge.svg)](https://github.com/hasirciogluhq/tokenix/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/hasirciogluhq/tokenix)](https://github.com/hasirciogluhq/tokenix/releases)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-## Ozellikler
+A tiny CLI that estimates how many tokens your prompt, file, or whole project will cost across popular LLMs — offline, instantly, with no API keys.
 
-- Cobra tabanli CLI
-- `--data` ile direkt metin uzerinden hesaplama
-- `--file` ile dosyadan hesaplama
-- `--dir` ile klasor ve altindaki tum dosyalari (ozyinelemeli) hesaplama
-- `--include` / `--exclude` glob filtreleri
-- stdin pipe ile hesaplama
-- Model bazli min / max / average / net token tahmini
-- Tum secili modeller icin genel ozet (spread dahil)
-- JSON veya text cikti
-- GitHub Actions CI + GoReleaser release akisi
+```console
+$ tokenix --dir . --include '*.go' --exclude '*_test.go' --model gpt-4o
+source: dir:. (5 files)
+characters: 13724
+words: 1641
 
-## Desteklenen Modeller
+model: gpt-4o
+  min_tokens: 2801
+  max_tokens: 4037
+  average_tokens: 3419
+  net_estimate: 3604
+```
 
-- `gpt-4o-mini`
-- `gpt-4o`
-- `claude-3.5-sonnet`
-- `claude-3-haiku`
-- `gemini-1.5-flash`
-- `gemini-1.5-pro`
+## Features
 
-## Kurulum
+- Estimate from a string (`--data`), a file (`--file`), stdin, or a whole directory tree (`--dir`)
+- Recursive directory scanning with `--include` / `--exclude` glob filters
+- Per-model min / max / average / net estimates plus an overall summary with spread
+- Text or JSON output (JSON also lists the files that were counted)
+- Single static binary, no network access, no API keys
 
-### 1) Homebrew ile (onerilen)
+> **Note:** tokenix gives *estimates* based on character and word heuristics, not exact tokenizer output. Use it for budgeting and sanity checks, not billing.
 
-`homebrew-tap` reposu olustugunda:
+## Supported models
+
+| Key | Family |
+| --- | --- |
+| `gpt-4o-mini` | OpenAI |
+| `gpt-4o` | OpenAI |
+| `claude-3.5-sonnet` | Anthropic |
+| `claude-3-haiku` | Anthropic |
+| `gemini-1.5-flash` | Google |
+| `gemini-1.5-pro` | Google |
+
+## Install
+
+### Homebrew
 
 ```bash
 brew tap hasirciogluhq/tap
 brew install tokenix
 ```
 
-Not: Eger formula ismi cakisirsa su sekilde de kurabilirsiniz:
-
-```bash
-brew install hasirciogluhq/tap/tokenix
-```
-
-### 2) Bash install scripti ile
-
-Latest surumu kur:
+### Install script
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/hasirciogluhq/tokenix/main/scripts/install.sh | bash
+# or pin a version
+curl -fsSL https://raw.githubusercontent.com/hasirciogluhq/tokenix/main/scripts/install.sh | bash -s -- v1.1.0
 ```
 
-Belirli surum kur:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/hasirciogluhq/tokenix/main/scripts/install.sh | bash -s -- v0.1.0
-```
-
-### 3) Go ile
+### Go
 
 ```bash
 go install github.com/hasirciogluhq/tokenix@latest
 ```
 
-## Kullanim
+### Prebuilt binaries
 
-### 1) `--data` ile
+Download archives for macOS, Linux, and Windows (amd64/arm64) from the [releases page](https://github.com/hasirciogluhq/tokenix/releases).
 
-```bash
-tokenix --data "Merhaba dunya bu bir token tahmin denemesi"
-```
-
-### 2) Dosyadan
+## Usage
 
 ```bash
+# Raw text
+tokenix --data "Hello, world"
+
+# A file
 tokenix --file ./prompt.txt
-```
 
-### 3) stdin ile
+# stdin
+cat prompt.txt | tokenix --model gpt-4o
 
-```bash
-echo "stdin ile gelen metin" | tokenix --model gpt-4o
-```
-
-### 4) Klasor (alt klasorler dahil) + filtre
-
-```bash
+# A directory, recursively, with filters
 tokenix --dir ./src
 tokenix --dir . --include '*.go' --exclude '*_test.go,vendor'
-tokenix --dir . -i 'internal/**' -x '*.md' --format json   # json cikti kullanilan dosyalari da listeler
+
+# Several models, JSON output
+tokenix --data "test" --model gpt-4o,claude-3.5-sonnet --format json
 ```
 
-Filtre kurallari:
+### Flags
 
-- Desen goreli yola, dosya adina veya herhangi bir ust klasor adina uyarsa eslesir (`*.go`, `vendor`)
-- `dir/**` o klasorun altindaki her seyi eslestirir
-- `--include` bos ise tum dosyalar dahildir; `--exclude` her zaman onceliklidir
-- `.git`, `node_modules` ve binary dosyalar otomatik atlanir
+| Flag | Short | Description |
+| --- | --- | --- |
+| `--data` | `-d` | Raw text to estimate |
+| `--file` | `-f` | Path to a file |
+| `--dir` | `-D` | Directory to scan recursively |
+| `--include` | `-i` | Only count files matching these globs (repeatable or comma-separated) |
+| `--exclude` | `-x` | Skip files/directories matching these globs (repeatable or comma-separated) |
+| `--model` | `-m` | Model key, comma-separated list, or `all` (default) |
+| `--format` | | `text` (default) or `json` |
+| `--version` | | Print version |
 
-### 5) Birden fazla model secimi
+Input precedence: `--dir`, then `--data`, then `--file`, then piped stdin.
 
-```bash
-tokenix --data "test" --model gpt-4o,claude-3.5-sonnet
-```
+### Filter rules
 
-### 6) JSON cikti
+- A pattern matches if it matches the relative path, the file name, or the name of any parent directory (`*.go`, `vendor`).
+- `dir/**` matches everything below `dir`.
+- An empty `--include` means "all files"; `--exclude` always wins.
+- `.git`, `node_modules`, and binary files are skipped automatically.
 
-```bash
-tokenix --data "test" --format json
-```
+## How estimation works
 
-## Branch ve release stratejisi
+Each model has a profile with a min and max characters-per-token ratio and a bias. The estimate combines a character-based range with a word-based range, then derives `average` and a `net_estimate` that leans toward the upper bound by the model's bias. The overall summary aggregates all selected models.
 
-Profesyonel akista:
+## Contributing
 
-1. `main`: stabil branch
-2. `development`: aktif gelistirme branchi
-3. Ozellik branchleri `development` uzerinden acilir
-4. `development` -> `main` merge sonrasi tag atilir
-5. SemVer tagleri (`v0.1.0`, `v0.1.1`, ...)
-6. Tag push ile GoReleaser otomatik binary release uretir
-7. GoReleaser ayni anda Homebrew formula gunceller
+Contributions are welcome — see [CONTRIBUTING.md](CONTRIBUTING.md). Development happens on `development`; releases are cut from `main` by pushing a `vX.Y.Z` tag.
 
-Ornek:
+## License
 
-```bash
-git checkout -b development
-git push -u origin development
-```
-
-Yeni versiyon:
-
-```bash
-git checkout main
-git pull origin main
-git tag v0.1.0
-git push origin v0.1.0
-```
-
-### Homebrew otomasyonu icin gerekenler
-
-- `hasirciogluhq/homebrew-tap` adinda bir repo olustur
-- Bu repoya yazma izni olan `HOMEBREW_TAP_GITHUB_TOKEN` secret'ini `tokenix` reposuna ekle
-- Tag release aninda formula otomatik push edilir
-
-## Go Proxy yenileme scripti
-
-`scripts/refresh-go-proxy.sh` scripti, yeni tag sonrasinda Go proxy cache'ini tetiklemek icin kullanilir:
-
-```bash
-./scripts/refresh-go-proxy.sh hasirciogluhq/tokenix v0.1.0
-```
-
-## Test
-
-Bu repoda unit testler:
-
-- `internal/token/estimator_test.go`
-- `internal/input/read_test.go`
-- `internal/input/dir_test.go`
-- `cmd/root_test.go`
-
-CI pipeline her push ve PR'da `go test ./...` calistirir.
+[MIT](LICENSE)

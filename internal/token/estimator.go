@@ -93,7 +93,7 @@ func ParseModelSelection(modelFlag string) ([]string, error) {
 			continue
 		}
 		if _, ok := modelProfiles[model]; !ok {
-			return nil, fmt.Errorf("desteklenmeyen model: %s", model)
+			return nil, fmt.Errorf("unsupported model: %s (supported: %s)", model, strings.Join(defaultModelOrder, ", "))
 		}
 		if _, ok := seen[model]; ok {
 			continue
@@ -103,7 +103,7 @@ func ParseModelSelection(modelFlag string) ([]string, error) {
 	}
 
 	if len(models) == 0 {
-		return nil, errors.New("model seçimi boş bırakılamaz")
+		return nil, errors.New("model selection cannot be empty")
 	}
 
 	return models, nil
@@ -113,7 +113,7 @@ func ParseModelSelection(modelFlag string) ([]string, error) {
 func Estimate(content string, modelFlag string) (ResultSet, error) {
 	input := strings.TrimSpace(content)
 	if input == "" {
-		return ResultSet{}, errors.New("girdi metni boş")
+		return ResultSet{}, errors.New("input text is empty")
 	}
 
 	models, err := ParseModelSelection(modelFlag)

@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>tokenix — offline token estimates for LLM prompts</title>
+<meta name="description" content="A tiny CLI that estimates token counts for files, prompts, and whole projects across popular LLMs.">
+<style>
+  :root { color-scheme: light dark; --bg:#fff; --fg:#1b1f24; --muted:#59636e; --card:#f6f8fa; --accent:#0969da; --border:#d0d7de; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#0d1117; --fg:#e6edf3; --muted:#8b949e; --card:#161b22; --accent:#58a6ff; --border:#30363d; } }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:16px/1.6 system-ui,-apple-system,Segoe UI,sans-serif; }
+  main { max-width:760px; margin:0 auto; padding:56px 20px 80px; }
+  h1 { font-size:2.4rem; margin:0 0 8px; }
+  h2 { margin-top:2.4em; font-size:1.3rem; }
+  p.lead { color:var(--muted); font-size:1.15rem; margin-top:0; }
+  pre { background:var(--card); border:1px solid var(--border); border-radius:8px; padding:14px 16px; overflow-x:auto; font-size:.9rem; }
+  code { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; }
+  a { color:var(--accent); }
+  table { border-collapse:collapse; width:100%; font-size:.95rem; }
+  th, td { text-align:left; padding:8px 10px; border-bottom:1px solid var(--border); }
+  footer { margin-top:3em; color:var(--muted); font-size:.9rem; }
+</style>
+</head>
+<body>
+<main>
+  <h1>tokenix</h1>
+  <p class="lead">Estimate how many tokens your prompt, file, or whole project will cost across popular LLMs — offline, instantly, no API keys.</p>
+  <p><a href="https://github.com/hasirciogluhq/tokenix">GitHub</a> · <a href="https://github.com/hasirciogluhq/tokenix/releases">Releases</a> · <a href="https://github.com/hasirciogluhq/tokenix/blob/main/CHANGELOG.md">Changelog</a></p>
+
+  <h2>Install</h2>
+<pre><code>brew tap hasirciogluhq/tap
+brew install tokenix
+
+# or
+go install github.com/hasirciogluhq/tokenix@latest</code></pre>
+
+  <h2>Use</h2>
+<pre><code>tokenix --data "Hello, world"
+tokenix --file prompt.txt
+cat prompt.txt | tokenix --model gpt-4o
+tokenix --dir . --include '*.go' --exclude '*_test.go,vendor'
+tokenix --data "test" --model gpt-4o,claude-3.5-sonnet --format json</code></pre>
+
+  <h2>Flags</h2>
+  <table>
+    <tr><th>Flag</th><th>Description</th></tr>
+    <tr><td><code>-d, --data</code></td><td>Raw text input</td></tr>
+    <tr><td><code>-f, --file</code></td><td>Path to a file</td></tr>
+    <tr><td><code>-D, --dir</code></td><td>Directory to scan recursively</td></tr>
+    <tr><td><code>-i, --include</code></td><td>Only count files matching these globs</td></tr>
+    <tr><td><code>-x, --exclude</code></td><td>Skip files/directories matching these globs</td></tr>
+    <tr><td><code>-m, --model</code></td><td>Model key, comma-separated list, or <code>all</code></td></tr>
+    <tr><td><code>--format</code></td><td><code>text</code> or <code>json</code></td></tr>
+  </table>
+
+  <h2>Supported models</h2>
+  <p><code>gpt-4o-mini</code>, <code>gpt-4o</code>, <code>claude-3.5-sonnet</code>, <code>claude-3-haiku</code>, <code>gemini-1.5-flash</code>, <code>gemini-1.5-pro</code></p>
+
+  <p><em>Estimates are heuristic (character and word based), not exact tokenizer output.</em></p>
+
+  <footer>MIT licensed · <a href="https://github.com/hasirciogluhq/tokenix">hasirciogluhq/tokenix</a></footer>
+</main>
+</body>
+</html>

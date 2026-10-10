@@ -15,7 +15,7 @@ func TestRunEstimateTextOutput(t *testing.T) {
 
 	opts := options{
 		model:  "gpt-4o",
-		data:   "Token sayımı için test metni.",
+		data:   "Sample text for token counting.",
 		format: "text",
 	}
 
@@ -38,7 +38,7 @@ func TestRunEstimateJSONOutput(t *testing.T) {
 
 	opts := options{
 		model:  "all",
-		data:   "JSON çıktısı için test metni.",
+		data:   "Sample text for JSON output.",
 		format: "json",
 	}
 

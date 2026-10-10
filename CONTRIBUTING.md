@@ -1,0 +1,34 @@
+# Contributing to tokenix
+
+Thanks for helping make tokenix better! Bug reports, ideas, docs fixes, and new model profiles are all welcome.
+
+## Getting started
+
+```bash
+git clone https://github.com/hasirciogluhq/tokenix
+cd tokenix
+go build ./...
+go test ./...
+go run . --data "hello world"
+```
+
+Requires Go 1.22 or newer.
+
+## Workflow
+
+1. Fork the repo and branch from `development`.
+2. Make your change, with tests where it makes sense.
+3. Run `gofmt -l .`, `go vet ./...` and `go test ./...`.
+4. Open a pull request against `development`.
+
+Releases are cut by maintainers: `development` is merged into `main`, then a `vX.Y.Z` tag triggers GoReleaser, which publishes binaries and updates the Homebrew formula.
+
+## Adding a model profile
+
+Profiles live in `internal/token/estimator.go`. Add a constant, a `modelProfiles` entry (min/max characters per token and a net bias), append it to `defaultModelOrder`, then update the README table and tests.
+
+## Style
+
+- Keep the CLI output stable; JSON field names are part of the public interface.
+- User-facing text (flags, errors, docs) is in English.
+- Use [Conventional Commits](https://www.conventionalcommits.org/) for commit messages (`feat:`, `fix:`, `docs:` ...).
