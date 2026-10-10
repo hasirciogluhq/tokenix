@@ -150,3 +150,16 @@ func TestLookup(t *testing.T) {
 		t.Fatalf("expected unknown error, got %v", err)
 	}
 }
+
+func TestAverageInputPerToken(t *testing.T) {
+	r := NewRegistry([]Model{
+		{ID: "a", Provider: "x", InputPerToken: 1e-6},
+		{ID: "b", Provider: "x", InputPerToken: 3e-6},
+	}, SourceCache, time.Now(), "")
+	if got := r.AverageInputPerToken(); got < 1.999e-6 || got > 2.001e-6 {
+		t.Fatalf("unexpected average %v", got)
+	}
+	if NewRegistry(nil, SourceCache, time.Now(), "").AverageInputPerToken() != 0 {
+		t.Fatal("empty registry should average to 0")
+	}
+}

@@ -52,14 +52,14 @@ tokenix models claude</code></pre>
     <tr><td><code>-D, --dir</code></td><td>Directory to scan recursively</td></tr>
     <tr><td><code>-i, --include</code></td><td>Only count files matching these globs</td></tr>
     <tr><td><code>-x, --exclude</code></td><td>Skip files/directories matching these globs</td></tr>
-    <tr><td><code>-m, --model</code></td><td>Model id(s), comma-separated or repeated (default: global estimate)</td></tr>
+    <tr><td><code>-m, --model</code></td><td>Model id(s), comma-separated or repeated (default: global estimate with average price)</td></tr>
     <tr><td><code>-a, --all</code></td><td>Every known model, with pricing</td></tr>
     <tr><td><code>--refresh</code></td><td>Ignore the 24h cache and re-download the model catalog</td></tr>
     <tr><td><code>--format</code></td><td><code>text</code> or <code>json</code></td></tr>
   </table>
 
   <h2>Models and pricing</h2>
-  <p>With no model selected tokenix prints one global estimate and stays offline. Selecting models loads a live catalog of OpenAI, Anthropic, Gemini, Mistral, xAI and DeepSeek models with input pricing, cached locally for 24 hours.</p>
+  <p>With no model selected tokenix prints one global estimate priced at the average input price across all known models. Selecting models gives per-model estimates. The catalog covers OpenAI, Anthropic, Gemini, Mistral, xAI and DeepSeek and is cached locally for 24 hours.</p>
 
   <p><em>Estimates are heuristic (character and word based), not exact tokenizer output.</em></p>
 
