@@ -1,0 +1,41 @@
+name: Setup Go with caches
+description: Install Go and restore/save the module and build caches (incrementally, per OS and Go version).
+
+inputs:
+  go-version:
+    description: Go version; defaults to the version in go.mod
+    required: false
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    - name: Install Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: ${{ inputs.go-version }}
+        go-version-file: ${{ inputs.go-version == '' && 'go.mod' || '' }}
+        # Caching is handled by the actions/cache step below so the build
+        # cache can be restored incrementally via restore-keys.
+        cache: false
+
+    - name: Locate Go caches
+      id: paths
+      shell: bash
+      run: |
+        echo "mod=$(go env GOMODCACHE)" >> "$GITHUB_OUTPUT"
+        echo "build=$(go env GOCACHE)" >> "$GITHUB_OUTPUT"
+        echo "version=$(go env GOVERSION)" >> "$GITHUB_OUTPUT"
+
+    - name: Cache Go modules and build cache
+      uses: actions/cache@v4
+      with:
+        path: |
+          ${{ steps.paths.outputs.mod }}
+          ${{ steps.paths.outputs.build }}
+        # Exact hit: nothing changed. Otherwise fall back to the newest cache
+        # with the same deps/toolchain and only recompile what changed.
+        key: go-${{ runner.os }}-${{ runner.arch }}-${{ steps.paths.outputs.version }}-${{ hashFiles('**/go.sum') }}-${{ hashFiles('**/*.go') }}
+        restore-keys: |
+          go-${{ runner.os }}-${{ runner.arch }}-${{ steps.paths.outputs.version }}-${{ hashFiles('**/go.sum') }}-
+          go-${{ runner.os }}-${{ runner.arch }}-${{ steps.paths.outputs.version }}-

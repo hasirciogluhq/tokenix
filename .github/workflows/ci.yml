@@ -23,10 +23,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-go@v5
-        with:
-          go-version-file: go.mod
-          cache: true
+      - uses: ./.github/actions/setup-go-cached
 
       - name: Check formatting
         run: |
@@ -56,22 +53,25 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-go@v5
+      - uses: ./.github/actions/setup-go-cached
         with:
           go-version: ${{ matrix.go-version }}
-          cache: true
 
       - name: Build
         run: go build ./...
 
       # bash everywhere: PowerShell mangles "-coverprofile=coverage.out".
-      # -race only on Linux: Go 1.22 race binaries abort on current macOS runners.
+      # -race (needs cgo) only on Linux. Elsewhere CGO is off, which matches the
+      # released binaries and avoids Go 1.22 test binaries aborting on macOS
+      # runners with "missing LC_UUID load command".
       - name: Test
         shell: bash
         run: |
-          race=""
-          if [ "$RUNNER_OS" = "Linux" ]; then race="-race"; fi
-          go test $race -covermode=atomic -coverprofile=coverage.out ./...
+          if [ "$RUNNER_OS" = "Linux" ]; then
+            go test -race -covermode=atomic -coverprofile=coverage.out ./...
+          else
+            CGO_ENABLED=0 go test -covermode=atomic -coverprofile=coverage.out ./...
+          fi
 
       - name: Coverage summary
         if: matrix.os == 'ubuntu-latest' && matrix.go-version == '1.23'
@@ -85,10 +85,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-go@v5
-        with:
-          go-version-file: go.mod
-          cache: true
+      - uses: ./.github/actions/setup-go-cached
 
       - name: Validate GoReleaser config and snapshot build
         uses: goreleaser/goreleaser-action@v6
