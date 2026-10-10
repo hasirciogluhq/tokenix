@@ -64,8 +64,14 @@ jobs:
       - name: Build
         run: go build ./...
 
+      # bash everywhere: PowerShell mangles "-coverprofile=coverage.out".
+      # -race only on Linux: Go 1.22 race binaries abort on current macOS runners.
       - name: Test
-        run: go test -race -covermode=atomic -coverprofile=coverage.out ./...
+        shell: bash
+        run: |
+          race=""
+          if [ "$RUNNER_OS" = "Linux" ]; then race="-race"; fi
+          go test $race -covermode=atomic -coverprofile=coverage.out ./...
 
       - name: Coverage summary
         if: matrix.os == 'ubuntu-latest' && matrix.go-version == '1.23'
