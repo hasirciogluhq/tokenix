@@ -8,6 +8,8 @@ Bu arac dosya, stdin ve direkt `--data` girdi yollarini destekler.
 - Cobra tabanli CLI
 - `--data` ile direkt metin uzerinden hesaplama
 - `--file` ile dosyadan hesaplama
+- `--dir` ile klasor ve altindaki tum dosyalari (ozyinelemeli) hesaplama
+- `--include` / `--exclude` glob filtreleri
 - stdin pipe ile hesaplama
 - Model bazli min / max / average / net token tahmini
 - Tum secili modeller icin genel ozet (spread dahil)
@@ -80,13 +82,28 @@ tokenix --file ./prompt.txt
 echo "stdin ile gelen metin" | tokenix --model gpt-4o
 ```
 
-### 4) Birden fazla model secimi
+### 4) Klasor (alt klasorler dahil) + filtre
+
+```bash
+tokenix --dir ./src
+tokenix --dir . --include '*.go' --exclude '*_test.go,vendor'
+tokenix --dir . -i 'internal/**' -x '*.md' --format json   # json cikti kullanilan dosyalari da listeler
+```
+
+Filtre kurallari:
+
+- Desen goreli yola, dosya adina veya herhangi bir ust klasor adina uyarsa eslesir (`*.go`, `vendor`)
+- `dir/**` o klasorun altindaki her seyi eslestirir
+- `--include` bos ise tum dosyalar dahildir; `--exclude` her zaman onceliklidir
+- `.git`, `node_modules` ve binary dosyalar otomatik atlanir
+
+### 5) Birden fazla model secimi
 
 ```bash
 tokenix --data "test" --model gpt-4o,claude-3.5-sonnet
 ```
 
-### 5) JSON cikti
+### 6) JSON cikti
 
 ```bash
 tokenix --data "test" --format json
@@ -140,6 +157,7 @@ Bu repoda unit testler:
 
 - `internal/token/estimator_test.go`
 - `internal/input/read_test.go`
+- `internal/input/dir_test.go`
 - `cmd/root_test.go`
 
 CI pipeline her push ve PR'da `go test ./...` calistirir.

@@ -11,10 +11,13 @@ import (
 )
 
 type options struct {
-	model  string
-	data   string
-	file   string
-	format string
+	model   string
+	data    string
+	file    string
+	dir     string
+	include []string
+	exclude []string
+	format  string
 }
 
 // Execute runs the root command.
@@ -34,15 +37,34 @@ func Execute(version string) error {
 	rootCmd.Flags().StringVarP(&opts.model, "model", "m", "all", "Model key (e.g. gpt-4o, claude-3.5-sonnet, gemini-1.5-pro) or all")
 	rootCmd.Flags().StringVarP(&opts.data, "data", "d", "", "Raw text input to estimate")
 	rootCmd.Flags().StringVarP(&opts.file, "file", "f", "", "Path to file input")
+	rootCmd.Flags().StringVarP(&opts.dir, "dir", "D", "", "Directory to scan recursively (all files below it)")
+	rootCmd.Flags().StringSliceVarP(&opts.include, "include", "i", nil, "Only count files matching these glob patterns (e.g. '*.go', 'src/**'); repeatable or comma-separated")
+	rootCmd.Flags().StringSliceVarP(&opts.exclude, "exclude", "x", nil, "Skip files/dirs matching these glob patterns (e.g. '*_test.go', 'vendor'); repeatable or comma-separated")
 	rootCmd.Flags().StringVarP(&opts.format, "format", "", "text", "Output format: text or json")
 
 	return rootCmd.Execute()
 }
 
 func runEstimate(stdin io.Reader, stdout io.Writer, opts options) error {
-	text, source, err := input.ResolveInput(stdin, opts.data, opts.file)
-	if err != nil {
-		return err
+	var (
+		text   string
+		source string
+		files  []string
+		err    error
+	)
+	if opts.dir != "" {
+		var res input.DirResult
+		res, err = input.ReadDir(opts.dir, opts.include, opts.exclude)
+		if err != nil {
+			return err
+		}
+		text, files = res.Content, res.Files
+		source = fmt.Sprintf("dir:%s (%d files)", opts.dir, len(files))
+	} else {
+		text, source, err = input.ResolveInput(stdin, opts.data, opts.file)
+		if err != nil {
+			return err
+		}
 	}
 
 	resultSet, err := token.Estimate(text, opts.model)
@@ -52,10 +74,12 @@ func runEstimate(stdin io.Reader, stdout io.Writer, opts options) error {
 
 	if opts.format == "json" {
 		out := struct {
-			Source string `json:"source"`
+			Source string   `json:"source"`
+			Files  []string `json:"files,omitempty"`
 			token.ResultSet
 		}{
 			Source:    source,
+			Files:     files,
 			ResultSet: resultSet,
 		}
 		enc := json.NewEncoder(stdout)

@@ -3,6 +3,8 @@ package cmd
 import (
 	"bytes"
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -50,5 +52,30 @@ func TestRunEstimateJSONOutput(t *testing.T) {
 	}
 	if payload["source"] != "flag:data" {
 		t.Fatalf("expected source=flag:data got %v", payload["source"])
+	}
+}
+
+func TestRunEstimateDirWithFilters(t *testing.T) {
+	root := t.TempDir()
+	os.WriteFile(filepath.Join(root, "a.go"), []byte("package a // hello world"), 0o644)
+	os.MkdirAll(filepath.Join(root, "sub"), 0o755)
+	os.WriteFile(filepath.Join(root, "sub", "b.go"), []byte("package b // nested file"), 0o644)
+	os.WriteFile(filepath.Join(root, "notes.md"), []byte("ignore me"), 0o644)
+
+	stdout := &bytes.Buffer{}
+	opts := options{model: "gpt-4o", dir: root, include: []string{"*.go"}, format: "json"}
+	if err := runEstimate(strings.NewReader(""), stdout, opts); err != nil {
+		t.Fatal(err)
+	}
+
+	var payload struct {
+		Source string   `json:"source"`
+		Files  []string `json:"files"`
+	}
+	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if len(payload.Files) != 2 || payload.Files[0] != "a.go" || payload.Files[1] != "sub/b.go" {
+		t.Fatalf("unexpected files: %v", payload.Files)
 	}
 }
