@@ -26,7 +26,7 @@ func TestParseModelSelectionList(t *testing.T) {
 }
 
 func TestEstimateSummarySpread(t *testing.T) {
-	result, err := Estimate("Merhaba bu bir token tahmin test içeriğidir.", "all")
+	result, err := Estimate("Hello, this is a sample text for token estimation.", "all")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -42,7 +42,7 @@ func TestEstimateSummarySpread(t *testing.T) {
 }
 
 func TestEstimateSingleModel(t *testing.T) {
-	result, err := Estimate("token sayısı için kısa test", ModelGPT4oMini)
+	result, err := Estimate("short text for token counting", ModelGPT4oMini)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

@@ -1,0 +1,22 @@
+# Changelog
+
+All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/) and the project uses [Semantic Versioning](https://semver.org/).
+
+## [Unreleased]
+
+### Changed
+- Documentation, error messages, and tests are now fully in English.
+
+### Added
+- `LICENSE` (MIT), `CONTRIBUTING.md`, issue/PR templates, and a GitHub Pages site under `docs/`.
+
+## [1.1.0] - 2026-10-10
+
+### Added
+- `--dir` for recursive directory scanning.
+- `--include` / `--exclude` glob filters; JSON output lists the counted files.
+
+## [1.0.0] - 2026-04-16
+
+### Added
+- Initial release: `--data`, `--file`, stdin input, multi-model estimates, JSON output, Homebrew and install-script distribution.
