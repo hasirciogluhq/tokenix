@@ -98,6 +98,7 @@ type report struct {
 
 type catalogInfo struct {
 	Source    string     `json:"source"`
+	Models    int        `json:"models"`
 	FetchedAt *time.Time `json:"fetched_at,omitempty"`
 }
 
@@ -118,17 +119,19 @@ func runEstimate(stdin io.Reader, stdout, stderr io.Writer, opts options) error 
 	rep := report{Source: source, Files: files, Counts: counts}
 	selection := selectedModels(opts)
 
-	if opts.all || len(selection) > 0 {
-		reg := opts.loadRegistry()
-		if reg.Warning != "" {
-			rep.Warnings = append(rep.Warnings, reg.Warning)
-		}
-		rep.Catalog = &catalogInfo{Source: reg.Source}
-		if !reg.FetchedAt.IsZero() {
-			t := reg.FetchedAt
-			rep.Catalog.FetchedAt = &t
-		}
+	// The catalog is needed for model pricing, and in global mode for the
+	// average price. It falls back to cache/built-in data when offline.
+	reg := opts.loadRegistry()
+	if reg.Warning != "" {
+		rep.Warnings = append(rep.Warnings, reg.Warning)
+	}
+	rep.Catalog = &catalogInfo{Source: reg.Source, Models: len(reg.Models)}
+	if !reg.FetchedAt.IsZero() {
+		t := reg.FetchedAt
+		rep.Catalog.FetchedAt = &t
+	}
 
+	if opts.all || len(selection) > 0 {
 		chosen, err := resolveModels(reg, selection, opts.all)
 		if err != nil {
 			return err
@@ -136,11 +139,7 @@ func runEstimate(stdin io.Reader, stdout, stderr io.Writer, opts options) error 
 		estimates := make([]token.Estimate, 0, len(chosen))
 		for _, m := range chosen {
 			e := token.ProfileFor(m.Provider).Estimate(counts)
-			cost := e.Cost(m.InputPerToken)
-			price := m.InputPerToken * 1e6
-			rep.Results = append(rep.Results, modelResult{
-				Model: m.ID, Provider: m.Provider, InputPricePer1M: &price, CostUSD: &cost, Estimate: e,
-			})
+			rep.Results = append(rep.Results, priced(m.ID, m.Provider, e, m.InputPerToken))
 			estimates = append(estimates, e)
 		}
 		if len(estimates) > 1 {
@@ -148,7 +147,8 @@ func runEstimate(stdin io.Reader, stdout, stderr io.Writer, opts options) error 
 			rep.Summary = &s
 		}
 	} else {
-		rep.Results = []modelResult{{Model: "global", Estimate: token.Global.Estimate(counts)}}
+		e := token.Global.Estimate(counts)
+		rep.Results = []modelResult{priced("global", "", e, reg.AverageInputPerToken())}
 	}
 
 	for _, w := range rep.Warnings {
@@ -162,6 +162,18 @@ func runEstimate(stdin io.Reader, stdout, stderr io.Writer, opts options) error 
 	}
 	printReport(stdout, rep)
 	return nil
+}
+
+// priced attaches input pricing to an estimate; a zero price is left out.
+func priced(id, provider string, e token.Estimate, perToken float64) modelResult {
+	r := modelResult{Model: id, Provider: provider, Estimate: e}
+	if perToken > 0 {
+		price := perToken * 1e6
+		cost := e.Cost(perToken)
+		r.InputPricePer1M = &price
+		r.CostUSD = &cost
+	}
+	return r
 }
 
 func readInput(stdin io.Reader, opts options) (text, source string, files []string, err error) {
@@ -221,16 +233,19 @@ func printReport(w io.Writer, rep report) {
 	fmt.Fprintf(w, "characters: %d\n", rep.Counts.Chars)
 	fmt.Fprintf(w, "words: %d\n\n", rep.Counts.Words)
 
-	priced := rep.Catalog != nil
+	showPrice := false
+	for _, r := range rep.Results {
+		showPrice = showPrice || r.CostUSD != nil
+	}
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
-	if priced {
+	if showPrice {
 		fmt.Fprintln(tw, "MODEL\tMIN\tMAX\tAVG\tNET\tIN $/1M\tCOST (NET)")
 	} else {
 		fmt.Fprintln(tw, "MODEL\tMIN\tMAX\tAVG\tNET")
 	}
 	for _, r := range rep.Results {
 		fmt.Fprintf(tw, "%s\t%d\t%d\t%d\t%d", r.Model, r.Min, r.Max, r.Average, r.Net)
-		if priced && r.CostUSD != nil {
+		if showPrice && r.CostUSD != nil {
 			fmt.Fprintf(tw, "\t%s\t%s", formatUSD(*r.InputPricePer1M), formatUSD(r.CostUSD.Net))
 		}
 		fmt.Fprintln(tw)
@@ -241,8 +256,12 @@ func printReport(w io.Writer, rep report) {
 		fmt.Fprintf(w, "\noverall: min %d, max %d, avg %d, net %d, spread %d\n",
 			rep.Summary.Min, rep.Summary.Max, rep.Summary.Average, rep.Summary.Net, rep.Summary.Spread)
 	}
-	if !priced {
-		fmt.Fprintln(w, "\ntip: use --model <id> or --all for model-specific estimates with pricing")
+	if len(rep.Results) == 1 && rep.Results[0].Model == "global" {
+		if showPrice {
+			fmt.Fprintf(w, "\nglobal price is the average input price across %d models; use --model <id> or --all for specific models\n", rep.Catalog.Models)
+		} else {
+			fmt.Fprintln(w, "\ntip: use --model <id> or --all for model-specific estimates with pricing")
+		}
 	}
 }
 

@@ -23,7 +23,7 @@ overall: min 5553, max 9069, avg 7135, net 7375, spread 3516
 
 - Estimate from a string (`--data`), a file (`--file`), stdin, or a whole directory tree (`--dir`)
 - Recursive directory scanning with `--include` / `--exclude` glob filters
-- **Global mode by default**: one model-agnostic estimate, no network needed
+- **Global mode by default**: one model-agnostic estimate priced at the average input price across all known models
 - **Model mode**: `--model gpt-4o` or `--model gpt-4o,claude-sonnet-4-5`, or `--all` for every known model
 - **Input pricing** per model (USD per 1M tokens and estimated cost)
 - Model list and prices come from a live catalog and are cached locally for 24 hours; `--refresh` forces a re-download
@@ -34,9 +34,9 @@ overall: min 5553, max 9069, avg 7135, net 7375, spread 3516
 
 ## Models and pricing
 
-Without `--model` / `--all`, tokenix prints a single `global` estimate and never touches the network.
+Without `--model` / `--all`, tokenix prints a single `global` estimate. Its price is the average input price across every model in the catalog, so you get a ballpark cost without picking a model.
 
-When you select models, tokenix loads a catalog of first-party chat models (OpenAI, Anthropic, Google Gemini, Mistral, xAI, DeepSeek) from the [LiteLLM price catalog](https://github.com/BerriAI/litellm/blob/main/model_prices_and_context_window.json):
+tokenix loads a catalog of first-party chat models (OpenAI, Anthropic, Google Gemini, Mistral, xAI, DeepSeek) from the [LiteLLM price catalog](https://github.com/BerriAI/litellm/blob/main/model_prices_and_context_window.json):
 
 | Step | Behavior |
 | --- | --- |

@@ -37,19 +37,50 @@ func decode(t *testing.T, s string) report {
 	return r
 }
 
-func TestDefaultIsGlobalWithoutCatalog(t *testing.T) {
-	opts := options{data: "Sample text for token counting.", format: "json"}
-	opts.registry = func(models.Options) *models.Registry {
-		t.Fatal("registry must not be loaded in global mode")
-		return nil
+func TestDefaultIsGlobalWithAveragePrice(t *testing.T) {
+	out, _, err := run(t, options{data: "Sample text for token counting.", format: "json"})
+	if err != nil {
+		t.Fatal(err)
 	}
+	r := decode(t, out)
+	if len(r.Results) != 1 || r.Results[0].Model != "global" || r.Summary != nil {
+		t.Fatalf("unexpected report: %+v", r)
+	}
+	// fakeRegistry prices: 3.0, 2.5 and 0.15 per 1M -> mean 1.883333
+	got := r.Results[0].InputPricePer1M
+	if got == nil || *got < 1.88 || *got > 1.89 {
+		t.Fatalf("expected average price ~1.883, got %v", got)
+	}
+	if r.Results[0].CostUSD == nil || r.Results[0].CostUSD.Net <= 0 {
+		t.Fatalf("expected cost on global result: %+v", r.Results[0])
+	}
+	if r.Catalog == nil || r.Catalog.Models != 3 {
+		t.Fatalf("expected catalog info with 3 models: %+v", r.Catalog)
+	}
+}
+
+func TestGlobalWithoutPricesOmitsCost(t *testing.T) {
+	opts := options{data: "hello", format: "json", registry: func(models.Options) *models.Registry {
+		return models.NewRegistry(nil, models.SourceBuiltin, time.Time{}, "")
+	}}
 	var out bytes.Buffer
 	if err := runEstimate(strings.NewReader(""), &out, &bytes.Buffer{}, opts); err != nil {
 		t.Fatal(err)
 	}
-	r := decode(t, out.String())
-	if len(r.Results) != 1 || r.Results[0].Model != "global" || r.Catalog != nil || r.Summary != nil {
-		t.Fatalf("unexpected report: %+v", r)
+	if r := decode(t, out.String()); r.Results[0].CostUSD != nil || r.Results[0].InputPricePer1M != nil {
+		t.Fatalf("expected no pricing: %+v", r.Results[0])
+	}
+}
+
+func TestGlobalTextShowsAveragePriceNote(t *testing.T) {
+	out, _, err := run(t, options{data: "hello world", format: "text"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"global", "COST (NET)", "average input price across 3 models"} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("missing %q in output:\n%s", want, out)
+		}
 	}
 }
 

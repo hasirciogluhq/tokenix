@@ -4,6 +4,13 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [1.1.2] - 2026-10-10
+
+### Changed
+- The default (global) estimate now includes pricing: the average input price across all known models and the resulting cost. It loads the model catalog (cached 24h), falling back to the built-in list when offline.
+
+## [1.1.1] - 2026-10-10
+
 ### Changed
 - **Breaking:** the hard-coded model list is gone. Without flags tokenix prints a single global estimate; use `--model` (single or comma-separated) or `--all` for model-specific results.
 - Text output is now a table; JSON schema changed (`counts`, `results[]`, `summary`, `catalog`).

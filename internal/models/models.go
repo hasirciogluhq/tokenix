@@ -181,6 +181,19 @@ func (r *Registry) Lookup(name string) (Model, error) {
 	return Model{}, fmt.Errorf("unknown model %q (run `tokenix models` to list all)", name)
 }
 
+// AverageInputPerToken returns the mean input price (USD per token) across
+// all models, or 0 for an empty registry.
+func (r *Registry) AverageInputPerToken() float64 {
+	if len(r.Models) == 0 {
+		return 0
+	}
+	var sum float64
+	for _, m := range r.Models {
+		sum += m.InputPerToken
+	}
+	return sum / float64(len(r.Models))
+}
+
 // Search returns models whose id or provider contains substr.
 func (r *Registry) Search(substr string) []Model {
 	substr = strings.ToLower(strings.TrimSpace(substr))
