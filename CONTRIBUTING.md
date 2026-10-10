@@ -23,9 +23,9 @@ Requires Go 1.22 or newer.
 
 Releases are cut by maintainers: `development` is merged into `main`, then a `vX.Y.Z` tag triggers GoReleaser, which publishes binaries and updates the Homebrew formula.
 
-## Adding a model profile
+## Provider profiles
 
-Profiles live in `internal/token/estimator.go`. Add a constant, a `modelProfiles` entry (min/max characters per token and a net bias), append it to `defaultModelOrder`, then update the README table and tests.
+Models and prices come from the live catalog (`internal/models`). Token ratios live in `internal/token/estimator.go` as per-provider profiles; providers without one use the global profile. To add a provider, allow it in `providers` in `internal/models/models.go` and, optionally, add a profile.
 
 ## Style
 

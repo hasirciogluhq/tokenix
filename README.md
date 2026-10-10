@@ -7,38 +7,54 @@
 A tiny CLI that estimates how many tokens your prompt, file, or whole project will cost across popular LLMs — offline, instantly, with no API keys.
 
 ```console
-$ tokenix --dir . --include '*.go' --exclude '*_test.go' --model gpt-4o
-source: dir:. (5 files)
-characters: 13724
-words: 1641
+$ tokenix --dir . --include '*.go' --exclude '*_test.go' --model gpt-4o,claude-sonnet-4-5
+source: dir:. (7 files)
+characters: 27206
+words: 3537
 
-model: gpt-4o
-  min_tokens: 2801
-  max_tokens: 4037
-  average_tokens: 3419
-  net_estimate: 3604
+MODEL              MIN   MAX   AVG   NET   IN $/1M  COST (NET)
+gpt-4o             5553  8002  6778  6974  $2.5000  $0.0174
+claude-sonnet-4-5  5915  9069  7492  7776  $3.0000  $0.0233
+
+overall: min 5553, max 9069, avg 7135, net 7375, spread 3516
 ```
 
 ## Features
 
 - Estimate from a string (`--data`), a file (`--file`), stdin, or a whole directory tree (`--dir`)
 - Recursive directory scanning with `--include` / `--exclude` glob filters
-- Per-model min / max / average / net estimates plus an overall summary with spread
-- Text or JSON output (JSON also lists the files that were counted)
-- Single static binary, no network access, no API keys
+- **Global mode by default**: one model-agnostic estimate, no network needed
+- **Model mode**: `--model gpt-4o` or `--model gpt-4o,claude-sonnet-4-5`, or `--all` for every known model
+- **Input pricing** per model (USD per 1M tokens and estimated cost)
+- Model list and prices come from a live catalog and are cached locally for 24 hours; `--refresh` forces a re-download
+- Text table or JSON output (JSON also lists the files that were counted)
+- Single static binary, no API keys
 
-> **Note:** tokenix gives *estimates* based on character and word heuristics, not exact tokenizer output. Use it for budgeting and sanity checks, not billing.
+> **Note:** tokenix gives *estimates* based on character and word heuristics, not exact tokenizer output. Prices come from a community catalog. Use it for budgeting and sanity checks, not billing.
 
-## Supported models
+## Models and pricing
 
-| Key | Family |
+Without `--model` / `--all`, tokenix prints a single `global` estimate and never touches the network.
+
+When you select models, tokenix loads a catalog of first-party chat models (OpenAI, Anthropic, Google Gemini, Mistral, xAI, DeepSeek) from the [LiteLLM price catalog](https://github.com/BerriAI/litellm/blob/main/model_prices_and_context_window.json):
+
+| Step | Behavior |
 | --- | --- |
-| `gpt-4o-mini` | OpenAI |
-| `gpt-4o` | OpenAI |
-| `claude-3.5-sonnet` | Anthropic |
-| `claude-3-haiku` | Anthropic |
-| `gemini-1.5-flash` | Google |
-| `gemini-1.5-pro` | Google |
+| Fresh cache (< 24h) | Used as is, no network |
+| Stale or missing cache | Downloaded, then cached |
+| `--refresh` | Cache ignored, always downloaded |
+| Download fails | Falls back to the stale cache, then to a small built-in list, with a warning |
+
+The cache lives in your user cache directory (`tokenix cache path` prints the exact file; `~/Library/Caches/tokenix` on macOS, `~/.cache/tokenix` on Linux).
+
+```bash
+tokenix models              # list every known model with prices
+tokenix models claude       # filter by id or provider
+tokenix cache path          # where the cache file lives
+tokenix cache clear         # delete the cache
+```
+
+Model names are case-insensitive and accept any unambiguous prefix (`gemini-2.5-pr` resolves to `gemini-2.5-pro`). Unknown names get suggestions.
 
 ## Install
 
@@ -83,8 +99,13 @@ cat prompt.txt | tokenix --model gpt-4o
 tokenix --dir ./src
 tokenix --dir . --include '*.go' --exclude '*_test.go,vendor'
 
-# Several models, JSON output
-tokenix --data "test" --model gpt-4o,claude-3.5-sonnet --format json
+# One model, several models, or all of them (with pricing)
+tokenix --data "test" --model gpt-4o
+tokenix --data "test" --model gpt-4o,claude-sonnet-4-5
+tokenix --data "test" --all
+
+# Force a fresh model/pricing download, JSON output
+tokenix --data "test" --model gpt-4o --refresh --format json
 ```
 
 ### Flags
@@ -96,7 +117,9 @@ tokenix --data "test" --model gpt-4o,claude-3.5-sonnet --format json
 | `--dir` | `-D` | Directory to scan recursively |
 | `--include` | `-i` | Only count files matching these globs (repeatable or comma-separated) |
 | `--exclude` | `-x` | Skip files/directories matching these globs (repeatable or comma-separated) |
-| `--model` | `-m` | Model key, comma-separated list, or `all` (default) |
+| `--model` | `-m` | Model id(s), comma-separated or repeated. Default: none (global estimate) |
+| `--all` | `-a` | Estimate for every known model |
+| `--refresh` | | Ignore the cache and re-download the model catalog |
 | `--format` | | `text` (default) or `json` |
 | `--version` | | Print version |
 
@@ -111,7 +134,7 @@ Input precedence: `--dir`, then `--data`, then `--file`, then piped stdin.
 
 ## How estimation works
 
-Each model has a profile with a min and max characters-per-token ratio and a bias. The estimate combines a character-based range with a word-based range, then derives `average` and a `net_estimate` that leans toward the upper bound by the model's bias. The overall summary aggregates all selected models.
+Each provider family has a profile with a min and max characters-per-token ratio and a bias; models from providers without a dedicated profile use the global profile. The estimate combines a character-based range with a word-based range, then derives `average` and a `net_estimate` that leans toward the upper bound by the profile's bias. Cost is `tokens × input price`. With several models, an overall summary aggregates them.
 
 ## Contributing
 

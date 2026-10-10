@@ -5,9 +5,14 @@ All notable changes to this project are documented here. The format follows [Kee
 ## [Unreleased]
 
 ### Changed
+- **Breaking:** the hard-coded model list is gone. Without flags tokenix prints a single global estimate; use `--model` (single or comma-separated) or `--all` for model-specific results.
+- Text output is now a table; JSON schema changed (`counts`, `results[]`, `summary`, `catalog`).
 - Documentation, error messages, and tests are now fully in English.
 
 ### Added
+- Live model catalog with input pricing (OpenAI, Anthropic, Gemini, Mistral, xAI, DeepSeek), cached for 24 hours in the user cache dir.
+- `--all`, `--refresh`, `tokenix models [filter]`, `tokenix cache path|clear`.
+- Cost estimates per model.
 - `LICENSE` (MIT), `CONTRIBUTING.md`, issue/PR templates, and a GitHub Pages site under `docs/`.
 
 ## [1.1.0] - 2026-10-10
