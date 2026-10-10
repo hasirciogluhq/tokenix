@@ -1,192 +1,123 @@
+// Package token estimates token counts from text using character and word
+// heuristics. It performs no tokenization and needs no network access.
 package token
 
 import (
 	"errors"
-	"fmt"
 	"math"
 	"strings"
 	"unicode/utf8"
 )
 
-// Model constants supported by the estimator.
-const (
-	ModelGPT4oMini      = "gpt-4o-mini"
-	ModelGPT4o          = "gpt-4o"
-	ModelClaude35Sonnet = "claude-3.5-sonnet"
-	ModelClaude3Haiku   = "claude-3-haiku"
-	ModelGemini15Flash  = "gemini-1.5-flash"
-	ModelGemini15Pro    = "gemini-1.5-pro"
-)
+// Counts holds the raw text measurements an estimate is derived from.
+type Counts struct {
+	Chars int `json:"char_count"`
+	Words int `json:"word_count"`
+}
 
-type modelProfile struct {
+// Profile describes how many characters make up a token for a model family.
+type Profile struct {
 	MinCharsPerToken float64
 	MaxCharsPerToken float64
-	NetBias          float64
+	// NetBias pulls the net estimate from the average toward the maximum.
+	NetBias float64
 }
 
-var modelProfiles = map[string]modelProfile{
-	ModelGPT4oMini:      {MinCharsPerToken: 3.2, MaxCharsPerToken: 4.8, NetBias: 0.15},
-	ModelGPT4o:          {MinCharsPerToken: 3.4, MaxCharsPerToken: 4.9, NetBias: 0.16},
-	ModelClaude35Sonnet: {MinCharsPerToken: 3.0, MaxCharsPerToken: 4.6, NetBias: 0.18},
-	ModelClaude3Haiku:   {MinCharsPerToken: 3.1, MaxCharsPerToken: 4.7, NetBias: 0.14},
-	ModelGemini15Flash:  {MinCharsPerToken: 3.5, MaxCharsPerToken: 5.1, NetBias: 0.12},
-	ModelGemini15Pro:    {MinCharsPerToken: 3.6, MaxCharsPerToken: 5.2, NetBias: 0.11},
+// Global is the model-agnostic profile used when no model is selected.
+var Global = Profile{MinCharsPerToken: 3.2, MaxCharsPerToken: 4.8, NetBias: 0.15}
+
+var providerProfiles = map[string]Profile{
+	"openai":    {MinCharsPerToken: 3.4, MaxCharsPerToken: 4.9, NetBias: 0.16},
+	"anthropic": {MinCharsPerToken: 3.0, MaxCharsPerToken: 4.6, NetBias: 0.18},
+	"gemini":    {MinCharsPerToken: 3.5, MaxCharsPerToken: 5.1, NetBias: 0.12},
 }
 
-var defaultModelOrder = []string{
-	ModelGPT4oMini,
-	ModelGPT4o,
-	ModelClaude35Sonnet,
-	ModelClaude3Haiku,
-	ModelGemini15Flash,
-	ModelGemini15Pro,
-}
-
-// ModelResult represents token estimations for a single model.
-type ModelResult struct {
-	Model       string `json:"model"`
-	Min         int    `json:"min"`
-	Max         int    `json:"max"`
-	Average     int    `json:"average"`
-	NetEstimate int    `json:"net_estimate"`
-}
-
-// SummaryResult represents aggregate estimations across all selected models.
-type SummaryResult struct {
-	Min         int `json:"min"`
-	Max         int `json:"max"`
-	Average     int `json:"average"`
-	NetEstimate int `json:"net_estimate"`
-	Spread      int `json:"spread"`
-}
-
-// ResultSet is the full estimation payload.
-type ResultSet struct {
-	Models    []string      `json:"models"`
-	CharCount int           `json:"char_count"`
-	WordCount int           `json:"word_count"`
-	Results   []ModelResult `json:"results"`
-	Summary   SummaryResult `json:"summary"`
-}
-
-// SupportedModels returns models in stable order.
-func SupportedModels() []string {
-	out := make([]string, len(defaultModelOrder))
-	copy(out, defaultModelOrder)
-	return out
-}
-
-// ParseModelSelection parses "--model" into selected model keys.
-func ParseModelSelection(modelFlag string) ([]string, error) {
-	normalized := strings.TrimSpace(strings.ToLower(modelFlag))
-	if normalized == "" || normalized == "all" {
-		return SupportedModels(), nil
+// ProfileFor returns the profile for a provider, or Global when unknown.
+func ProfileFor(provider string) Profile {
+	if p, ok := providerProfiles[provider]; ok {
+		return p
 	}
-
-	parts := strings.Split(normalized, ",")
-	seen := make(map[string]struct{}, len(parts))
-	models := make([]string, 0, len(parts))
-
-	for _, p := range parts {
-		model := strings.TrimSpace(p)
-		if model == "" {
-			continue
-		}
-		if _, ok := modelProfiles[model]; !ok {
-			return nil, fmt.Errorf("unsupported model: %s (supported: %s)", model, strings.Join(defaultModelOrder, ", "))
-		}
-		if _, ok := seen[model]; ok {
-			continue
-		}
-		seen[model] = struct{}{}
-		models = append(models, model)
-	}
-
-	if len(models) == 0 {
-		return nil, errors.New("model selection cannot be empty")
-	}
-
-	return models, nil
+	return Global
 }
 
-// Estimate calculates per-model and aggregate token estimations.
-func Estimate(content string, modelFlag string) (ResultSet, error) {
-	input := strings.TrimSpace(content)
-	if input == "" {
-		return ResultSet{}, errors.New("input text is empty")
-	}
-
-	models, err := ParseModelSelection(modelFlag)
-	if err != nil {
-		return ResultSet{}, err
-	}
-
-	charCount := utf8.RuneCountInString(input)
-	wordCount := len(strings.Fields(input))
-	results := make([]ModelResult, 0, len(models))
-
-	for _, model := range models {
-		profile := modelProfiles[model]
-		results = append(results, estimateForProfile(model, charCount, wordCount, profile))
-	}
-
-	return ResultSet{
-		Models:    models,
-		CharCount: charCount,
-		WordCount: wordCount,
-		Results:   results,
-		Summary:   summarize(results),
-	}, nil
+// Estimate is a token range for one profile.
+type Estimate struct {
+	Min     int `json:"min"`
+	Max     int `json:"max"`
+	Average int `json:"average"`
+	Net     int `json:"net_estimate"`
 }
 
-func estimateForProfile(model string, charCount int, wordCount int, profile modelProfile) ModelResult {
-	minByChars := int(math.Ceil(float64(charCount) / profile.MaxCharsPerToken))
-	maxByChars := int(math.Ceil(float64(charCount) / profile.MinCharsPerToken))
-
-	// Word multiplier keeps estimates reasonable when punctuation/whitespace density is high.
-	minByWords := int(math.Ceil(float64(wordCount) * 0.70))
-	maxByWords := int(math.Ceil(float64(wordCount) * 1.60))
-
-	minTokens := max(1, max(minByChars, minByWords))
-	maxTokens := max(minTokens, max(maxByChars, maxByWords))
-	average := int(math.Round(float64(minTokens+maxTokens) / 2.0))
-	net := int(math.Round(float64(average)*(1.0-profile.NetBias) + float64(maxTokens)*profile.NetBias))
-	net = max(minTokens, min(net, maxTokens))
-
-	return ModelResult{
-		Model:       model,
-		Min:         minTokens,
-		Max:         maxTokens,
-		Average:     average,
-		NetEstimate: net,
-	}
+// Cost is a price range in USD.
+type Cost struct {
+	Min float64 `json:"min"`
+	Max float64 `json:"max"`
+	Net float64 `json:"net"`
 }
 
-func summarize(results []ModelResult) SummaryResult {
-	if len(results) == 0 {
-		return SummaryResult{}
+// Summary aggregates several estimates.
+type Summary struct {
+	Estimate
+	Spread int `json:"spread"`
+}
+
+// Count measures text. It errors on blank input.
+func Count(text string) (Counts, error) {
+	trimmed := strings.TrimSpace(text)
+	if trimmed == "" {
+		return Counts{}, errors.New("input text is empty")
 	}
+	return Counts{Chars: utf8.RuneCountInString(trimmed), Words: len(strings.Fields(trimmed))}, nil
+}
 
-	globalMin := results[0].Min
-	globalMax := results[0].Max
-	totalAverage := 0
-	totalNet := 0
+// Estimate derives a token range from counts.
+func (p Profile) Estimate(c Counts) Estimate {
+	minByChars := int(math.Ceil(float64(c.Chars) / p.MaxCharsPerToken))
+	maxByChars := int(math.Ceil(float64(c.Chars) / p.MinCharsPerToken))
 
-	for _, r := range results {
-		globalMin = min(globalMin, r.Min)
-		globalMax = max(globalMax, r.Max)
-		totalAverage += r.Average
-		totalNet += r.NetEstimate
+	// Word multipliers keep estimates sane when punctuation density is high.
+	minByWords := int(math.Ceil(float64(c.Words) * 0.70))
+	maxByWords := int(math.Ceil(float64(c.Words) * 1.60))
+
+	lo := max(1, minByChars, minByWords)
+	hi := max(lo, maxByChars, maxByWords)
+	avg := int(math.Round(float64(lo+hi) / 2))
+	net := int(math.Round(float64(avg)*(1-p.NetBias) + float64(hi)*p.NetBias))
+	net = max(lo, min(net, hi))
+
+	return Estimate{Min: lo, Max: hi, Average: avg, Net: net}
+}
+
+// Cost prices an estimate given the USD cost of one input token.
+func (e Estimate) Cost(perToken float64) Cost {
+	// Round to 1e-12 USD to hide float noise such as 0.000007500000000000001.
+	price := func(tokens int) float64 {
+		return math.Round(float64(tokens)*perToken*1e12) / 1e12
 	}
+	return Cost{Min: price(e.Min), Max: price(e.Max), Net: price(e.Net)}
+}
 
-	avg := int(math.Round(float64(totalAverage) / float64(len(results))))
-	net := int(math.Round(float64(totalNet) / float64(len(results))))
-
-	return SummaryResult{
-		Min:         globalMin,
-		Max:         globalMax,
-		Average:     avg,
-		NetEstimate: net,
-		Spread:      globalMax - globalMin,
+// Summarize aggregates estimates: overall min/max and mean average/net.
+func Summarize(list []Estimate) Summary {
+	if len(list) == 0 {
+		return Summary{}
+	}
+	lo, hi := list[0].Min, list[0].Max
+	var avgSum, netSum int
+	for _, e := range list {
+		lo = min(lo, e.Min)
+		hi = max(hi, e.Max)
+		avgSum += e.Average
+		netSum += e.Net
+	}
+	n := float64(len(list))
+	return Summary{
+		Estimate: Estimate{
+			Min:     lo,
+			Max:     hi,
+			Average: int(math.Round(float64(avgSum) / n)),
+			Net:     int(math.Round(float64(netSum) / n)),
+		},
+		Spread: hi - lo,
 	}
 }

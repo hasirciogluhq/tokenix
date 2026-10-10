@@ -5,32 +5,91 @@ on:
     branches:
       - main
       - development
-      - "cursor/**"
   pull_request:
     branches:
       - main
       - development
 
-jobs:
-  test:
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        go-version:
-          - "1.22"
-          - "1.23"
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
-      - name: Setup Go
-        uses: actions/setup-go@v5
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ./.github/actions/setup-go-cached
+
+      - name: Check formatting
+        run: |
+          unformatted="$(gofmt -l .)"
+          if [ -n "$unformatted" ]; then
+            echo "These files need gofmt:"
+            echo "$unformatted"
+            exit 1
+          fi
+
+      - name: Verify go.mod is tidy
+        run: |
+          go mod tidy
+          git diff --exit-code go.mod go.sum
+
+      - name: Vet
+        run: go vet ./...
+
+  test:
+    needs: lint
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        go-version: ["1.22", "1.23"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ./.github/actions/setup-go-cached
         with:
           go-version: ${{ matrix.go-version }}
-          cache: true
 
-      - name: Download modules
-        run: go mod download
+      - name: Build
+        run: go build ./...
 
-      - name: Run tests
-        run: go test ./...
+      # bash everywhere: PowerShell mangles "-coverprofile=coverage.out".
+      # -race (needs cgo) only on Linux. Elsewhere CGO is off, which matches the
+      # released binaries and avoids Go 1.22 test binaries aborting on macOS
+      # runners with "missing LC_UUID load command".
+      - name: Test
+        shell: bash
+        run: |
+          if [ "$RUNNER_OS" = "Linux" ]; then
+            go test -race -covermode=atomic -coverprofile=coverage.out ./...
+          else
+            CGO_ENABLED=0 go test -covermode=atomic -coverprofile=coverage.out ./...
+          fi
+
+      - name: Coverage summary
+        if: matrix.os == 'ubuntu-latest' && matrix.go-version == '1.23'
+        run: go tool cover -func=coverage.out | tail -n 1
+
+  build-check:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: ./.github/actions/setup-go-cached
+
+      - name: Validate GoReleaser config and snapshot build
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          distribution: goreleaser
+          version: "~> v2"
+          args: release --snapshot --clean --skip=publish
